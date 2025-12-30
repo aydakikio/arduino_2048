@@ -8,7 +8,6 @@ U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, -1, A5, A4);
 #define BTN_DOWN 9
 #define BTN_LEFT 7
 #define BTN_UP 6
-#define BTN_RESET 4
 
 // ===== GAME DATA STRUCTURES =====
 struct Block {
@@ -25,6 +24,7 @@ Block blocks[4][6];
 // Game state variables
 int score = 0;           
 bool gameStarted = false; 
+bool game_over = false;
 
 // ===== FUNCTION DECLARATIONS =====
 void draw_game();
@@ -46,7 +46,6 @@ void setup() {
   pinMode(BTN_DOWN, INPUT_PULLUP);
   pinMode(BTN_LEFT, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
-  pinMode(BTN_RESET, INPUT_PULLUP);
   
   randomSeed(analogRead(A0));
   
@@ -55,39 +54,49 @@ void setup() {
 
 // ===== MAIN LOOP =====
 void loop() {
+  if (!game_over) {
+      static unsigned long lastPress = 0;  
+    unsigned long currentTime = millis(); 
+    
+    if (currentTime - lastPress > 200) {
+      bool moved = false; 
+      
+      if (digitalRead(BTN_LEFT) == LOW) {
+        moved = move_left();
+        lastPress = currentTime;
+      }
+      else if (digitalRead(BTN_RIGHT) == LOW) {
+        moved = move_right();
+        lastPress = currentTime;
+      }
+      else if (digitalRead(BTN_UP) == LOW) {
+        moved = move_up();
+        lastPress = currentTime;
+      }
+      else if (digitalRead(BTN_DOWN) == LOW) {
+        moved = move_down();
+        lastPress = currentTime;
+      }
+      
+      // If player successfully moved tiles, add a new random tile
+      if (moved) {
+        add_random_block();
+      }
+    }
+    
+    // Redraw the screen with current game state
+    draw_game();
+    delay(50);  
+  }else {
+    
+    draw_gameover();
 
-  static unsigned long lastPress = 0;  
-  unsigned long currentTime = millis(); 
-  
-  if (currentTime - lastPress > 200) {
-    bool moved = false; 
-    
-    if (digitalRead(BTN_LEFT) == LOW) {
-      moved = move_left();
-      lastPress = currentTime;
-    }
-    else if (digitalRead(BTN_RIGHT) == LOW) {
-      moved = move_right();
-      lastPress = currentTime;
-    }
-    else if (digitalRead(BTN_UP) == LOW) {
-      moved = move_up();
-      lastPress = currentTime;
-    }
-    else if (digitalRead(BTN_DOWN) == LOW) {
-      moved = move_down();
-      lastPress = currentTime;
+    if (condition) {
+    statements
     }
     
-    // If player successfully moved tiles, add a new random tile
-    if (moved) {
-      add_random_block();
-    }
   }
-  
-  // Redraw the screen with current game state
-  draw_game();
-  delay(50);  // Small delay to reduce flickering
+
 }
 
 // ===== GAME INITIALIZATION =====
@@ -132,7 +141,7 @@ void add_random_block() {
   
   // If board is full, can't add a tile
   if (empty_count == 0){
-    draw_gameover();
+    game_over = true;
   }
   
   // STEP 2: Pick a random empty space (0 to empty_count-1)
@@ -355,5 +364,10 @@ void draw_game() {
 }
 
 void draw_gameover(){
-  u8g2.drawStr(10, 20, "GameOver!");
+  u8g2.firstPage();
+  do {
+    
+    u8g2.setFont(u8g2_font_7x14B_tr);
+    u8g2.drawStr(100, 10, "GameOver");
+  }while (u8g2.nextPage());
 }
