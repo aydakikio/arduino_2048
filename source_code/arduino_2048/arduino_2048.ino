@@ -61,7 +61,7 @@ void setup() {
 
 // ===== MAIN LOOP =====
 void loop() {
-
+  
   if (!game_over) {
 
     static unsigned long lastPress = 0;
@@ -107,6 +107,7 @@ void loop() {
       delay(300);
     }
   }
+
 }
 
 // ===== GAME INITIALIZATION =====
@@ -357,15 +358,15 @@ void draw_gameover() {
   u8g2.firstPage();
   do {
     u8g2.setFont(u8g2_font_7x14B_tr);
-    u8g2.drawStr(22, 20, "Game Over");
+    u8g2.drawStr(24, 20, "Game Over");
 
     u8g2.setFont(u8g2_font_5x7_mf);
 
     if(score > highScore){
-      u8g2.drawStr(22, 20 ,  "New Score!");
+      u8g2.drawStr(12, 40 ,  "New Score!");
     }
 
-    u8g2.drawStr(15, 40, "Press any button to restart!");
+    u8g2.drawStr(12, 60, "Press any button...");
 
   }while (u8g2.nextPage());
 }
