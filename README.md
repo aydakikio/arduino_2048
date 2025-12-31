@@ -233,71 +233,109 @@ For new features, open an issue describing:
 
 ### Code Structure
 ```cpp
-// Hardware configuration
+// Hardware configuration (display, buttons)
 // Constants (#define)
+// Data structures (structs)
 // Game state variables
-// Structs (Block, Ball)
-// Game objects
-// Functions
+// Function declarations
+// setup() and loop()
+// Game logic functions
+// Drawing functions
 ```
 
 ### Naming Conventions
-- **Variables:** `snake_case` (player_pedal, blocks_remaining)
-- **Constants:** `SCREAMING_SNAKE_CASE` (MAX_BLOCKS, BTN_RIGHT)
-- **Functions:** `snake_case` (draw_game, check_block_collisions)
-- **Structs:** `PascalCase` (Block, Ball)
+- **Variables:** `snake_case` (game_over, empty_count, high_score)
+- **Constants:** `SCREAMING_SNAKE_CASE` (BTN_RIGHT, EEPROM_ADDR_HIGHSCORE)
+- **Functions:** `snake_case` (draw_game, add_random_block, move_left)
+- **Structs:** `PascalCase` (Block)
 
 ### Key Structures
 ```cpp
 struct Block {
-  int x, y;      // Position
-  int w, h;      // Size
-  bool active;   // In play?
-};
-
-struct Ball {
-  int x, y;      // Position
-  int vx, vy;    // Velocity
-  int r;         // Radius
+  int x, y;      // Position on screen
+  int w, h;      // Tile dimensions
+  int value;     // Tile value (0=empty, 2, 4, 8...)
 };
 ```
 
 ### Core Patterns
 
-**Collision Detection:**
+**Grid-Based Movement:**
 ```cpp
-if(ball.x + ball.r >= block.x && 
-   ball.x - ball.r <= block.x + block.w &&
-   ball.y + ball.r >= block.y && 
-   ball.y - ball.r <= block.y + block.h) {
-  // Handle collision
+bool move_left() {
+  bool moved = false;
+  
+  for (int i = 0; i < 4; i++) {
+    int writePos = 0;
+    int lastMerged = -1;
+    
+    for (int j = 0; j < 6; j++) {
+      if (blocks[i][j].value != 0) {
+        // Try to merge with previous tile
+        if (writePos > 0 && 
+            blocks[i][writePos-1].value == blocks[i][j].value &&
+            lastMerged != writePos-1) {
+          blocks[i][writePos-1].value *= 2;
+          score += blocks[i][writePos-1].value;
+          blocks[i][j].value = 0;
+          lastMerged = writePos-1;
+          moved = true;
+        } else {
+          // Just slide the tile
+          if (writePos != j) {
+            blocks[i][writePos].value = blocks[i][j].value;
+            blocks[i][j].value = 0;
+            moved = true;
+          }
+          writePos++;
+        }
+      }
+    }
+  }
+  return moved;
 }
 ```
 
-**Input Handling:**
+**Input Handling with Debouncing:**
 ```cpp
-void handle_pedal_controls() {
-  if(digitalRead(BTN_LEFT) == LOW) {
-    if(player_pedal.x <= 0) return;  // Boundary check
-    player_pedal.x -= PEDAL_SPEED;
+static unsigned long lastPress = 0;
+unsigned long now = millis();
+
+if (now - lastPress > 200) {  // 200ms debounce
+  bool moved = false;
+  
+  if (digitalRead(BTN_LEFT) == LOW) {
+    moved = move_left();
+    lastPress = now;
+  }
+  
+  if (moved && canMove()) {
+    add_random_block();  // Add new tile after successful move
   }
 }
 ```
 
-**Game Loop:**
+**Game State Management:**
 ```cpp
-void draw_game() {
-  handle_pedal_controls();          // Every frame
-  
-  if(millis() - lastUpdateTime >= UPDATE_INTERVAL) {
-    ball_pysics();                   // Fixed timestep
-    lastUpdateTime = millis();
+void loop() {
+  if (!game_over) {
+    // Handle input and update game
+    if (moved && !canMove()) {
+      game_over = true;
+      if (score > highScore) {
+        highScore = score;
+        EEPROM.put(EEPROM_ADDR_HIGHSCORE, highScore);
+      }
+    }
+    draw_game();
+  } else {
+    draw_gameover();
+    // Wait for any button to restart
+    if (digitalRead(BTN_LEFT) == LOW || /* ... */) {
+      game_over = false;
+      initialize_game();
+    }
   }
-  
-  u8g2.firstPage();
-  do {
-    // Draw everything
-  } while(u8g2.nextPage());
 }
 ```
 
@@ -305,40 +343,67 @@ void draw_game() {
 
 **Memory Management:**
 - Arduino Uno: 32KB Flash, 2KB SRAM
-- Use `const` for constants (saves SRAM)
-- Keep SRAM usage < 80%
-- Avoid `String` class, use `char[]`
+- Use 2D arrays for grids: `Block blocks[4][6]`
+- Store high scores in EEPROM for persistence
+- Validate EEPROM data on read (check for corruption)
+- Avoid dynamic memory allocation
 
 **Performance:**
-- Use `millis()` for timing, never `delay()`
-- Controls update every frame
-- Physics update at fixed intervals
-- Always check boundaries before movement
+- Use `millis()` for debouncing, not `delay()`
+- Return early from functions when possible
+- Check `moved` flag before spawning new tiles
+- Update display only when needed (40ms refresh)
 
 **U8g2 Display:**
 ```cpp
-U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R3, -1, A5, A4);
-// U8G2_R3 = 270° rotation
+U8G2_SH1106_128X64_NONAME_2_HW_I2C u8g2(U8G2_R0, -1, A5, A4);
+// U8G2_R0 = no rotation
 // -1 = no reset pin
+// A5 = SCL, A4 = SDA
+
+void draw_game() {
+  u8g2.firstPage();
+  do {
+    // All drawing commands here
+    u8g2.setDrawColor(0);  // Clear areas
+    u8g2.setDrawColor(1);  // Draw elements
+  } while (u8g2.nextPage());
+}
+```
+
+**EEPROM Usage:**
+```cpp
+// Read with validation
+EEPROM.get(EEPROM_ADDR_HIGHSCORE, highScore);
+if (highScore < 0 || highScore > 100000) highScore = 0;
+
+// Write only when needed
+if (score > highScore) {
+  EEPROM.put(EEPROM_ADDR_HIGHSCORE, highScore);
+}
 ```
 
 ### Testing Checklist
 - [ ] Compiles without errors/warnings
-- [ ] SRAM usage < 80%
-- [ ] Tested on actual hardware
-- [ ] Button response is smooth
-- [ ] Collisions work correctly
-- [ ] Win/lose states tested
-- [ ] No debug code left in
+- [ ] All four directions work correctly
+- [ ] Tiles merge only once per move
+- [ ] New tiles spawn only after valid moves
+- [ ] Game over detection works properly
+- [ ] High score persists after reset
+- [ ] Button debouncing prevents double-moves
+- [ ] Display renders cleanly (no artefacts)
+- [ ] Score updates correctly on merges
 
 ### Common Pitfalls
-❌ Don't use `delay()` in game loop  
-❌ Don't forget boundary checks  
-❌ Don't hardcode values  
+❌ Don't use `delay()` in main loop  
+❌ Don't allow tiles to merge multiple times per move  
+❌ Don't spawn tiles if no movement occurred  
+❌ Don't forget to clear tile backgrounds before redrawing  
+✅ Use `millis()` for timing and debouncing  
+✅ Track `lastMerged` to prevent double-merges  
+✅ Return `moved` flag from movement functions  
+✅ Use `u8g2.setDrawColor(0)` to clear areas
 
-✅ Use `millis()` for timing  
-✅ Always validate movement  
-✅ Use `#define` constants  
 
 ---
 <p align="center">
