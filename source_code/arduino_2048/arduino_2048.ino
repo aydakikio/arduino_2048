@@ -353,19 +353,19 @@ void draw_game() {
   } while (u8g2.nextPage());
 }
 
-void draw_gameover(){
+void draw_gameover() {
   u8g2.firstPage();
   do {
-    
     u8g2.setFont(u8g2_font_7x14B_tr);
-    u8g2.drawStr(64, 10, "GameOver");
+    u8g2.drawStr(22, 20, "Game Over");
 
     u8g2.setFont(u8g2_font_5x7_mf);
 
     if(score > highScore){
-      u8g2.drawStr(64, 20 ,  "New Score!");
+      u8g2.drawStr(22, 20 ,  "New Score!");
     }
-    u8g2.drawStr(64, 40, "Press any button to restart!");
+
+    u8g2.drawStr(15, 40, "Press any button to restart!");
 
   }while (u8g2.nextPage());
 }
