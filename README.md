@@ -95,7 +95,7 @@ Then follow Steps 2-5 from Method 1.
 ### Required Components
 - **Arduino Nano** (or compatible)
 - **128x64 OLED Display** (SSD1306/SH1106, I2C)
-- **2x Push Buttons**
+- **4x Push Buttons**
 - **Breadboard and jumper wires**
 
 ### Wiring
